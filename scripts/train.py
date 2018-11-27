@@ -42,10 +42,6 @@ if __name__ == '__main__':
     }
     model = get_gru_model(returns_state=False, **model_kwargs)
     model.compile(loss='sparse_categorical_crossentropy', optimizer='adam')
-
-    url_idx = url_idx[:128]
-    phishy = phishy[:128]
-
     model.fit(
         [url_idx[:, :-1], phishy, np.zeros((url_idx.shape[0], args.units))],
         url_idx[:, 1:, None],
