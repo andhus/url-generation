@@ -16,7 +16,7 @@ if __name__ == '__main__':
         job_name='DefaultJob',
         units=512,
         embedding_size=32,
-        url_cap_length=1e2,
+        url_cap_length=100,
         batch_size=32,
         epochs=1,
     )
@@ -32,7 +32,8 @@ if __name__ == '__main__':
     charizer = Charizer()
     charizer.fit_on_texts(urls)
     charizer.save(os.path.join(job_path, 'charizer'))
-    url_idx = charizer.transform_texts(urls, cap_length=args)
+    url_idx = charizer.transform_texts(urls, cap_length=args.url_cap_length)
+    print('Data shape: {}'.format(url_idx.shape))
 
     print('Creating model...')
     model_kwargs = {
