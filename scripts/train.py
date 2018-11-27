@@ -1,88 +1,68 @@
+"""Train a Recurrent Neural Network to generate phishy and non-phishy URL:s"""
 from __future__ import print_function, division
+
+import os
 
 import numpy as np
 
 from url_gen.data import get_kaggle_urldataset
-
-from keras import backend as K
-from keras import layers
-from keras.models import Model
+from url_gen.model import Charizer, get_gru_model, Sampler
+from url_gen.script_utils import get_url_gen_argument_parser, initialize_job
 
 
 if __name__ == '__main__':
-    URL_MAX_LENGTH = 80
-    LIMIT = None
-    EMBEDDING_SIZE = 32
-    RNN_UNITS = 512
-
-    data = get_kaggle_urldataset()[:LIMIT]
-    urls = data['url']
-    phishing = data['phishing'].astype(float).values[:, None]
-
-    pad_token = '<pad>'
-    start_token = '<start>'
-    end_token = '<end>'
-
-    chars = [pad_token, start_token, end_token] + sorted(list(set(''.join(urls))))
-    num_chars = len(chars)
-    print('total chars:', num_chars)
-    char_to_idx = dict((c, i) for i, c in enumerate(chars))
-    idx_to_char = dict((i, c) for i, c in enumerate(chars))
-
-    url_max_length_detected = urls.apply(len).max()  # TODO print
-    max_length = min(URL_MAX_LENGTH, url_max_length_detected)
-
-    url_idx = np.zeros((len(urls), max_length + 2), dtype=np.int)
-    for i, url in enumerate(urls):
-        for t, char in enumerate(
-            [start_token] + list(url[:max_length]) + [end_token]
-        ):
-            url_idx[i, t] = char_to_idx[char]
-    sequence_length = max_length + 1
-
-    x = layers.Input((None, ), name='url_idx')
-    c = layers.Input((1, ), name='phishing_label')
-    initial_state = layers.Input((RNN_UNITS,), name='initial_state')
-
-    embedding = layers.Embedding(num_chars, EMBEDDING_SIZE, mask_zero=True)(x)
-    c_ext = layers.Lambda(
-        lambda x_: K.repeat(c, K.shape(x)[1])
-    )(c)
-    embedding_c = layers.concatenate([embedding, c_ext], axis=-1)
-
-    h1, state = layers.GRU(RNN_UNITS, return_sequences=True, return_state=True)(
-        embedding_c, initial_state=initial_state
+    parser = get_url_gen_argument_parser(
+        description=__doc__,
+        job_name='DefaultJob',
+        units=512,
+        embedding_size=32,
+        url_cap_length=1e2,
+        batch_size=32,
+        epochs=1,
     )
-    y_pred = layers.TimeDistributed(
-        layers.Dense(num_chars, activation='softmax')
-    )(h1)
+    args = parser.parse_args()
+    print('Running training with args: {}'.format(args))
+    job_path = initialize_job(args)
 
-    model = Model([x, c, initial_state], y_pred)
+    print("Loading and preprocessing data...")
+    data = get_kaggle_urldataset()
+    urls = data['url']
+    phishy = data['phishing'].astype(float).values[:, None]
+
+    charizer = Charizer()
+    charizer.fit_on_texts(urls)
+    charizer.save(os.path.join(job_path, 'charizer'))
+    url_idx = charizer.transform_texts(urls, cap_length=args)
+
+    print('Creating model...')
+    model_kwargs = {
+        'num_chars': charizer.num_chars,
+        'units': args.units,
+        'embedding_size': args.embedding_size,
+    }
+    model = get_gru_model(returns_state=False, **model_kwargs)
     model.compile(loss='sparse_categorical_crossentropy', optimizer='adam')
 
+    url_idx = url_idx[:128]
+    phishy = phishy[:128]
+
     model.fit(
-        [url_idx[:, :-1], phishing, np.zeros((url_idx.shape[0], RNN_UNITS))],
+        [url_idx[:, :-1], phishy, np.zeros((url_idx.shape[0], args.units))],
         url_idx[:, 1:, None],
-        epochs=3
+        epochs=1
     )
+    model_with_state = get_gru_model(returns_state=True, **model_kwargs)
+    model_with_state.set_weights(model.get_weights())
+    model_with_state.save_weights(os.path.join(job_path, 'model_weights.h5'))
 
-    model_with_state = Model([x, c, initial_state], [y_pred, state])
+    print('Done training!')
+    sampler = Sampler(model_with_state, charizer, max_length=1e3)
+    phishy_urls = [sampler.sample(phish_score=1.) for _ in range(10)]
+    non_phishy_urls = [sampler.sample(phish_score=0.) for _ in range(10)]
+    print("\n--- Phishy URL samples ---")
+    for url in phishy_urls:
+        print(url)
 
-    def sample(hotstart='', phish_score=1, t_max=1e2):
-        t = 0
-        y_t = np.array([[char_to_idx[c] for c in [start_token] + list(hotstart)]])
-        state_t = np.zeros((1, RNN_UNITS))
-        generated_chars = []
-        end_idx = char_to_idx[end_token]
-
-        while y_t[0, -1] != end_idx and t < t_max:
-            t += 1
-            c_arr = np.array([[phish_score]])
-            char_proba, state_t = model_with_state.predict([y_t, c_arr, state_t])
-            next_char_idx = np.random.choice(np.arange(num_chars), p=char_proba[0, -1])
-            generated_chars.append(idx_to_char[next_char_idx])
-            y_t = np.array([[next_char_idx]])
-
-        result = hotstart + ''.join(generated_chars)
-
-        return result
+    print("\n--- Non-phishy URL samples ---")
+    for url in non_phishy_urls:
+        print(url)

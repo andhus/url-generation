@@ -42,7 +42,7 @@ def get_kaggle_urldataset(
         'KaggleURLDataset',
         'urldata.csv'
     )
-    df = pd.read_csv(filepath)
+    df = pd.read_csv(filepath, encoding='utf8')
     df['phishing'] = df['label'] == 'bad'  # all are good or bad (no undefined)
     if url_preprocess is not None:
         if isinstance(url_preprocess, (tuple, list)):
