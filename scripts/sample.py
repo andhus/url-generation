@@ -4,12 +4,15 @@ from __future__ import print_function, division
 import json
 import os
 import random
+import subprocess
 
 import six
 import argparse
 
-
 from url_gen.script_utils import DEFAULT_RESULTS_PATH
+from url_gen.data import SCRIPTS_PATH
+
+DEFAULT_JOB_PATH = os.path.join(DEFAULT_RESULTS_PATH, 'DefaultJob')
 
 
 def get_parser():
@@ -17,8 +20,8 @@ def get_parser():
     parser.add_argument(
         '--job-path',
         type=str,
-        default=os.path.join(DEFAULT_RESULTS_PATH, 'DefaultJob'),
-        help='The training job to load model from'
+        default=DEFAULT_JOB_PATH,
+        help='The training job result directory to load the model from.'
     )
 
     return parser
@@ -27,6 +30,32 @@ def get_parser():
 if __name__ == '__main__':
     parser = get_parser()
     args = parser.parse_args()
+    if not os.path.exists(args.job_path):
+        download = six.moves.input(
+            'Could not find results for training job {} - '
+            'do you want to download and sample from a '
+            'default pretrained model? [y/n]: '.format(args.job_path)
+        ).strip().lower()
+        while download not in ('y', 'n'):
+            overwrite = six.moves.input(
+                'Enter "y" (download default model) or "n" (exit): '
+            ).strip().lower()
+        if download == 'n':
+            exit(0)
+        else:
+            script_path = os.path.join(
+                SCRIPTS_PATH,
+                'download_default_job_result.sh'
+            )
+            process = subprocess.Popen(script_path, stdout=subprocess.PIPE)
+            output, error = process.communicate()
+            if error or not os.path.exists(args.job_path):
+                print(
+                    'Failed to download default model, please file an issue at '
+                    'https://github.com/andhus/url-generation/issues'
+                )
+                exit(1)
+
     with open(os.path.join(args.job_path, 'arguments.json')) as f:
         job_args = json.load(f)
 

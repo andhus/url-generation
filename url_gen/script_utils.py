@@ -5,7 +5,7 @@ import os
 import argparse
 
 from datetime import datetime
-
+from warnings import warn
 
 DEFAULT_RESULTS_PATH = os.path.abspath(  # script outputs end up here.
     os.path.join(*([__file__] + [os.pardir] * 2 + ['results']))
@@ -45,6 +45,12 @@ def get_train_base_argument_parser(
         default=epochs,
         help='The number of epochs to use in training')
 
+    parser.add_argument(
+        '--sample-fraction',
+        type=float,
+        default=None,
+        help='Use only a sub sample of data (useful for debugging)')
+
     return parser
 
 
@@ -78,13 +84,31 @@ def get_url_gen_argument_parser(
     return parser
 
 
+def check_get_versioned_job_path(job_path):
+    while os.path.exists(job_path):
+        warn('{} exists, appending version'.format(job_path))
+        parts = job_path.split('#')
+        if len(parts) > 1:
+            try:
+                version = int(parts[-1])
+                version += 1
+                parts[-1] = str(version)
+            except ValueError:
+                parts.append('1')
+        else:
+            parts.append('1')
+        job_path = '#'.join(parts)
+
+    return job_path
+
+
 def initialize_job(args, append_time_job_name=False):
-    # TODO check for overwrite
     if append_time_job_name:
         job_name = args.job_name + '_' + datetime.now().isoformat()
     else:
         job_name = args.job_name
     job_path = os.path.join(args.target_dir, job_name)
+    job_path = check_get_versioned_job_path(job_path)
     mkdirp(job_path)
     arg_dict = vars(args)
     with open(os.path.join(job_path, 'arguments.json'), 'w') as f:

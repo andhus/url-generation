@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 
-from url_gen.data import get_kaggle_urldataset
+from url_gen.data import get_kaggle_urldata
 from url_gen.model import Charizer, get_gru_model, Sampler
 from url_gen.script_utils import get_url_gen_argument_parser, initialize_job
 
@@ -25,7 +25,7 @@ if __name__ == '__main__':
     job_path = initialize_job(args)
 
     print("Loading and preprocessing data...")
-    data = get_kaggle_urldataset()
+    data = get_kaggle_urldata()
     urls = data['url']
     phishy = data['phishing'].astype(float).values[:, None]
 
@@ -34,6 +34,15 @@ if __name__ == '__main__':
     charizer.save(os.path.join(job_path, 'charizer'))
     url_idx = charizer.transform_texts(urls, cap_length=args.url_cap_length)
     print('Data shape: {}'.format(url_idx.shape))
+
+    if args.sample_fraction is not None:
+        assert 0.01 <= args.sample_fraction <= 1.0
+        num_samples = url_idx.shape[0]
+        num_samples_sub = int(args.sample_fraction * num_samples)
+        index = np.random.permutation(np.arange(num_samples))[:num_samples_sub]
+        url_idx = url_idx[index]
+        phishy = phishy[index]
+        print('Using only {} samples for training'.format(num_samples_sub))
 
     print('Creating model...')
     model_kwargs = {
