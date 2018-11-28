@@ -1,4 +1,4 @@
-"""Generate phishy/non-phishy URL:s"""
+"""Sample phishy/non-phishy URL:s from a trained model."""
 from __future__ import print_function, division
 
 import json
@@ -21,7 +21,7 @@ def get_parser():
         '--job-path',
         type=str,
         default=DEFAULT_JOB_PATH,
-        help='The training job result directory to load the model from.'
+        help='training job result directory to load the model from'
     )
 
     return parser

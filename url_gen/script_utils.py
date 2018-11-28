@@ -25,31 +25,31 @@ def get_train_base_argument_parser(
         '--job-name',
         type=str,
         default=job_name,
-        help='The name of the training job')
+        help='name of the training job')
 
     parser.add_argument(
         '-o', '--target-dir',
         type=str,
         default=target_dir,
-        help='The directory to write output to (model checkpoints etc.)')
+        help='directory to write output to (model checkpoints etc.)')
 
     parser.add_argument(
         '--batch-size',
         type=int,
         default=batch_size,
-        help='The batch size to use in training')
+        help='batch size to use in training')
 
     parser.add_argument(
         '--epochs',
         type=int,
         default=epochs,
-        help='The number of epochs to use in training')
+        help='number of epochs to use in training')
 
     parser.add_argument(
         '--sample-fraction',
         type=float,
         default=None,
-        help='Use only a sub sample of data (useful for debugging)')
+        help='use only a sub sample of data (useful for debugging)')
 
     return parser
 

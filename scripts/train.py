@@ -1,4 +1,4 @@
-"""Train a Recurrent Neural Network to generate phishy and non-phishy URL:s"""
+"""Train a Recurrent Neural Network to generate phishy and non-phishy URL:s."""
 from __future__ import print_function, division
 
 import os
